@@ -1,4 +1,5 @@
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -6,62 +7,67 @@
 
 #include <iostream>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 int main(int Argc, char *Argv[])
 {
-    int PipeFds[2] = {0, 0};
-    if (pipe(PipeFds) == -1)
+    // Create the FIFO.
+    //
+    const char *kFifoPath = "/tmp/PipeIPC";
+
+    std::cout << "RX: ABOUT TO CREATE TX " << kFifoPath << std::endl;
+    if (mkfifo(kFifoPath, S_IRUSR | S_IWUSR))
     {
-        std::cerr << "BAD PIPE" << std::endl;
+        std::cerr << "RX: BAD FIFO" << std::endl;
 
         return 1;
     }
 
-    std::cout << "GOT 2 FD " << PipeFds[0] << ' ' << PipeFds[1] << std::endl;
+    std::cout << "RX: GOT FIFO AT " << kFifoPath << std::endl;
 
-    // Create the RX, and tive the file descriptor to it.
+    // Spawn the TX process.
     //
-    char ChildArgStr[256];
-    memset(ChildArgStr, '\0', 256);
-    sprintf(ChildArgStr, "%d", PipeFds[1]);
+    std::cout << "RX: SPAWN TX" << std::endl;
 
-    std::cout << "ABOUT TO CREATE TX " << ChildArgStr << std::endl;
+    char Cmd[256];
+    memset(Cmd, '\0', 256);
+    sprintf(Cmd, "TX %s &", kFifoPath);
 
-    if (execl("TX", ChildArgStr, NULL) == -1)
+    if (system(Cmd) < 0)
     {
-        std::cerr << "FAILED TO CREATE TX PROCESS" << std::endl;
+        std::cerr << "FAILED TO SPAWN TX" << std::endl;
 
         return 1;
     }
 
     // Read the data until error happens.
     //
-    FILE *PipeReadFile = fdopen(PipeFds[0], "r");
-    if (!PipeReadFile)
+    int ReadFd = open(kFifoPath, O_RDONLY);
+    if (!ReadFd)
     {
         std::cerr << "FAILED TO OPEN PIPE AS FILE" << std::endl;
 
         return 1;
     }
 
-    std::cout << "ABOUT TO READ" << std::endl;
-
+    // Read loop.
+    //
     char *Buffer = reinterpret_cast<char *>(malloc(1024 * 1024));
-    while (!feof(PipeReadFile))
+    while (read(ReadFd, Buffer, sizeof(int) * 2) == sizeof(int) * 2)
     {
         int Header[2] = {-1, 0};
-        fread(Header, sizeof(Header), 1, PipeReadFile);
+        memcpy(Header, Buffer, sizeof(int) * 2);
         std::cout << "READ HEADER " << Header[0] << ' ' << Header[1] << std::endl;
 
-        if (fread(Buffer, Header[1], 1, PipeReadFile) == Header[1])
+        if (read(ReadFd, Buffer, Header[1]) == Header[1])
             std::cout << "\t" << "READ DATA " << Header[1] << std::endl;
     }
     free(Buffer);
 
     // Close our read fd.
     //
-    fclose(PipeReadFile);
-
-    close(PipeFds[0]);
+    close(ReadFd);
 
     return 0;
 }
