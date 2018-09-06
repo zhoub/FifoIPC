@@ -15,6 +15,7 @@ int main(int Argc, char *Argv[])
     // Create the FIFO.
     //
     const char *kFifoPath = "/tmp/PipeIPC";
+    remove(kFifoPath);
 
     std::cout << "RX: ABOUT TO CREATE TX " << kFifoPath << std::endl;
     if (mkfifo(kFifoPath, S_IRUSR | S_IWUSR))
@@ -68,6 +69,10 @@ int main(int Argc, char *Argv[])
     // Close our read fd.
     //
     close(ReadFd);
+
+    // Remove the fifo.
+    //
+    remove(kFifoPath);
 
     return 0;
 }

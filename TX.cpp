@@ -17,7 +17,7 @@ int main(int Argc, char *Argv[])
     const char *FifoPath = Argv[1];
     std::cout << "TX: USING FIFO " << FifoPath << std::endl;
 
-    int WriteFd = open(FifoPath, O_WRONLY);
+    int WriteFd = open(FifoPath, O_WRONLY | O_SYNC);
     if (WriteFd == -1)
     {
         std::cerr << "FAILED TO OPEN PIPE TO WRITE" << std::endl;
